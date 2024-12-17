@@ -29,29 +29,25 @@ contract RecommendationGraph is Ownable, ReentrancyGuard {
     // Node Storage
     mapping(uint256 => TrackNode) public tracks;
     mapping(address => ArtistNode) public artists;
-    
+
     // Edge Storage
     mapping(uint256 => mapping(uint256 => Edge)) public trackToTrackEdges;
     mapping(address => mapping(uint256 => bool)) public userInteractions;
-    
+
     uint256 public _tokenIdCounter;
-    
+
     // Events
     event TrackNodeAdded(uint256 indexed tokenId, string metadataURI);
     event ArtistNodeAdded(address indexed artist, string metadataURI);
     event TrackEdgeCreated(uint256 indexed fromTrack, uint256 indexed toTrack, uint8 weight);
     event UserInteraction(address indexed user, uint256 indexed tokenId, uint8 interactionType);
 
-    constructor() Ownable(msg.sender) {}
+    constructor() Ownable(msg.sender) { }
 
     // Node Management Functions
     function addTrackNode(uint256 tokenId, string memory metadataURI) public returns (bool) {
         require(!tracks[tokenId].exists, "Track already exists");
-        tracks[tokenId] = TrackNode({
-            metadataURI: metadataURI,
-            exists: true,
-            interactionCount: 0
-        });
+        tracks[tokenId] = TrackNode({ metadataURI: metadataURI, exists: true, interactionCount: 0 });
         _tokenIdCounter++;
         emit TrackNodeAdded(tokenId, metadataURI);
         return true;
@@ -59,11 +55,7 @@ contract RecommendationGraph is Ownable, ReentrancyGuard {
 
     function addArtistNode(string memory metadataURI) public returns (bool) {
         require(!artists[msg.sender].exists, "Artist already exists");
-        artists[msg.sender] = ArtistNode({
-            metadataURI: metadataURI,
-            exists: true,
-            trackCount: 0
-        });
+        artists[msg.sender] = ArtistNode({ metadataURI: metadataURI, exists: true, trackCount: 0 });
         emit ArtistNodeAdded(msg.sender, metadataURI);
         return true;
     }
@@ -78,12 +70,9 @@ contract RecommendationGraph is Ownable, ReentrancyGuard {
     function addTrackToTrackEdge(uint256 fromTrack, uint256 toTrack, uint8 weight) public returns (bool) {
         require(tracks[fromTrack].exists && tracks[toTrack].exists, "Tracks must exist");
         require(weight <= 100, "Weight must be between 0 and 100");
-        
-        trackToTrackEdges[fromTrack][toTrack] = Edge({
-            exists: true,
-            weight: weight
-        });
-        
+
+        trackToTrackEdges[fromTrack][toTrack] = Edge({ exists: true, weight: weight });
+
         emit TrackEdgeCreated(fromTrack, toTrack, weight);
         return true;
     }
@@ -91,10 +80,10 @@ contract RecommendationGraph is Ownable, ReentrancyGuard {
     function recordUserInteraction(uint256 tokenId, uint8 interactionType) public nonReentrant returns (bool) {
         require(tracks[tokenId].exists, "Track does not exist");
         require(interactionType <= 2, "Invalid interaction type"); // 0=view, 1=like, 2=share
-        
+
         userInteractions[msg.sender][tokenId] = true;
         tracks[tokenId].interactionCount++;
-        
+
         emit UserInteraction(msg.sender, tokenId, interactionType);
         return true;
     }
@@ -126,12 +115,12 @@ contract RecommendationGraph is Ownable, ReentrancyGuard {
         // First pass: Find tracks the user has interacted with
         for (uint256 i = 0; i < _tokenIdCounter; i++) {
             if (!tracks[i].exists) continue;
-            
+
             if (userInteractions[user][i]) {
                 // Look for related tracks
                 for (uint256 j = 0; j < _tokenIdCounter; j++) {
                     if (i == j || !tracks[j].exists || userInteractions[user][j]) continue;
-                    
+
                     if (trackToTrackEdges[i][j].exists) {
                         // Calculate recommendation score based on edge weight and interaction count
                         // Use unchecked for weight multiplication since weight is 0-100
@@ -139,7 +128,7 @@ contract RecommendationGraph is Ownable, ReentrancyGuard {
                         unchecked {
                             score = uint256(trackToTrackEdges[i][j].weight) * (tracks[j].interactionCount + 1);
                         }
-                        
+
                         // Check if this track is already in recommendations
                         bool found = false;
                         for (uint256 k = 0; k < count; k++) {
@@ -152,7 +141,7 @@ contract RecommendationGraph is Ownable, ReentrancyGuard {
                                 break;
                             }
                         }
-                        
+
                         // Add new recommendation if not found and there's space
                         if (!found && count < 100) {
                             recommendations[count] = j;
@@ -172,7 +161,7 @@ contract RecommendationGraph is Ownable, ReentrancyGuard {
                     uint256 tempScore = scores[j];
                     scores[j] = scores[j + 1];
                     scores[j + 1] = tempScore;
-                    
+
                     // Swap recommendations
                     uint256 tempRec = recommendations[j];
                     recommendations[j] = recommendations[j + 1];

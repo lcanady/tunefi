@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.20;
 
-import {Test} from "forge-std/Test.sol";
-import {console2} from "forge-std/console2.sol";
+import { Test } from "forge-std/Test.sol";
+import { console2 } from "forge-std/console2.sol";
 
 contract BaseTest is Test {
     // Common addresses used across tests
@@ -40,4 +40,4 @@ contract BaseTest is Test {
         vm.warp(block.timestamp + seconds_);
         vm.roll(block.number + (seconds_ / 12)); // Assuming ~12 second block times
     }
-} 
+}
