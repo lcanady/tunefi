@@ -47,7 +47,7 @@ contract TuneTokenomicsTest is Test {
         token.mintInflation();
 
         // Expected inflation is 2% of total supply
-        uint256 expectedInflation = (initialSupply * token.INFLATION_RATE()) / 10000;
+        uint256 expectedInflation = (initialSupply * token.INFLATION_RATE()) / 10_000;
         assertEq(token.totalSupply(), initialSupply + expectedInflation);
 
         // Verify pool distributions
@@ -61,7 +61,7 @@ contract TuneTokenomicsTest is Test {
     /// @dev Simulates multiple years of inflation to verify max supply cap
     function test_MaxSupplyLimit() public {
         vm.startPrank(admin);
-        
+
         // Move forward multiple years to test max supply limit
         for (uint256 i = 0; i < 10; i++) {
             vm.warp(block.timestamp + YEAR);
@@ -77,7 +77,7 @@ contract TuneTokenomicsTest is Test {
     /// @dev Verifies burn tracking and supply reduction
     function test_Burning() public {
         uint256 burnAmount = 1000 * 10 ** 18;
-        
+
         vm.startPrank(admin);
         token.transfer(user1, burnAmount);
         vm.stopPrank();
@@ -96,7 +96,7 @@ contract TuneTokenomicsTest is Test {
     /// @dev Verifies stake amount and timestamp recording
     function test_Staking() public {
         uint256 stakeAmount = 1000 * 10 ** 18;
-        
+
         vm.startPrank(admin);
         token.transfer(user1, stakeAmount);
         vm.stopPrank();
@@ -114,8 +114,8 @@ contract TuneTokenomicsTest is Test {
     /// @notice Tests staking rewards distribution
     /// @dev Verifies equal reward distribution for equal stakes
     function test_StakingRewards() public {
-        uint256 stakeAmount = 10000 * 10 ** 18;
-        
+        uint256 stakeAmount = 10_000 * 10 ** 18;
+
         // Setup initial state
         vm.startPrank(admin);
         token.transfer(user1, stakeAmount);
@@ -151,7 +151,7 @@ contract TuneTokenomicsTest is Test {
     /// @dev Verifies partial unstaking and remaining stake calculation
     function test_Unstaking() public {
         uint256 stakeAmount = 1000 * 10 ** 18;
-        
+
         vm.startPrank(admin);
         token.transfer(user1, stakeAmount);
         vm.stopPrank();
@@ -204,7 +204,7 @@ contract TuneTokenomicsTest is Test {
     /// @dev Should revert when stake amount is too low
     function testFail_StakeBelowMinimum() public {
         uint256 smallAmount = 100 * 10 ** 18; // Below minimum stake amount
-        
+
         vm.startPrank(admin);
         token.transfer(user1, smallAmount);
         vm.stopPrank();
@@ -218,7 +218,7 @@ contract TuneTokenomicsTest is Test {
     /// @dev Should revert when unstake amount exceeds stake
     function testFail_UnstakeMoreThanStaked() public {
         uint256 stakeAmount = 1000 * 10 ** 18;
-        
+
         vm.startPrank(admin);
         token.transfer(user1, stakeAmount);
         vm.stopPrank();
@@ -243,4 +243,4 @@ contract TuneTokenomicsTest is Test {
         token.advanceEpoch();
         token.advanceEpoch(); // Should fail as epoch duration hasn't passed
     }
-} 
+}

@@ -15,86 +15,86 @@ contract TuneToken is ERC20, ERC20Permit, ERC20Votes, Ownable {
     // Constants
     /// @notice Maximum total supply cap of 2 billion tokens
     uint256 public constant MAX_SUPPLY = 2_000_000_000 * 10 ** 18;
-    
+
     /// @notice Annual inflation rate of 2% in basis points (200/10000)
     uint256 public constant INFLATION_RATE = 200;
-    
+
     /// @notice Maximum allowed inflation rate of 5% in basis points (500/10000)
     uint256 public constant MAX_INFLATION_RATE = 500;
-    
+
     /// @notice Platform fee burn rate of 1% in basis points (100/10000)
     uint256 public constant BURN_RATE = 100;
-    
+
     /// @notice Duration of each reward epoch (7 days)
     uint256 public constant EPOCH_DURATION = 7 days;
-    
+
     /// @notice Minimum amount required for staking (1000 tokens)
     uint256 public constant MIN_STAKE_AMOUNT = 1000 * 10 ** 18;
 
     // Distribution pools
     /// @notice Pool for community rewards and incentives
     uint256 public communityRewardsPool;
-    
+
     /// @notice Pool for ecosystem development funding
     uint256 public ecosystemDevelopmentPool;
-    
+
     /// @notice Pool for liquidity mining rewards
     uint256 public liquidityMiningPool;
-    
+
     /// @notice Pool for governance incentives
     uint256 public governancePool;
 
     /// @notice Staking information for an address
     /// @dev Tracks staked amount, start time, and last reward claim time
     struct Stake {
-        uint256 amount;        // Amount of tokens staked
-        uint256 startTime;     // Timestamp when stake was created
+        uint256 amount; // Amount of tokens staked
+        uint256 startTime; // Timestamp when stake was created
         uint256 lastRewardTime; // Last time rewards were calculated
     }
 
     /// @notice Service tier information
     /// @dev Defines token holding requirements and discount rates
     struct ServiceTier {
-        uint256 minTokens;    // Minimum tokens required for tier
+        uint256 minTokens; // Minimum tokens required for tier
         uint256 discountRate; // Discount rate in basis points
     }
 
     /// @notice Vesting schedule for token distribution
     /// @dev Controls token release over time with optional revocation
     struct VestingSchedule {
-        uint256 totalAmount;    // Total tokens to be vested
-        uint256 startTime;      // Start of vesting period
-        uint256 duration;       // Length of vesting period
+        uint256 totalAmount; // Total tokens to be vested
+        uint256 startTime; // Start of vesting period
+        uint256 duration; // Length of vesting period
         uint256 releasedAmount; // Tokens already released
-        bool revocable;         // Whether schedule can be revoked
-        bool revoked;           // Whether schedule has been revoked
+        bool revocable; // Whether schedule can be revoked
+        bool revoked; // Whether schedule has been revoked
     }
 
     // State variables
     /// @notice Timestamp of last inflation mint
     uint256 public lastInflationTime;
-    
+
     /// @notice Total amount of tokens burned
     uint256 public totalBurned;
-    
+
     /// @notice Current epoch number
     uint256 public currentEpoch;
-    
+
     /// @notice Accumulated rewards per staked token
     uint256 public rewardPerToken;
-    
+
     /// @notice Mapping of address to staking information
     mapping(address => Stake) public stakes;
-    
+
     /// @notice Mapping of tier level to service tier information
     mapping(uint256 => ServiceTier) public serviceTiers;
-    
+
     /// @notice Mapping of address to vesting schedule
     mapping(address => VestingSchedule) public vestingSchedules;
-    
+
     /// @notice Mapping of address to paid rewards per token
     mapping(address => uint256) public userRewardPerTokenPaid;
-    
+
     /// @notice Mapping of address to pending rewards
     mapping(address => uint256) public rewards;
 
@@ -115,9 +115,9 @@ contract TuneToken is ERC20, ERC20Permit, ERC20Votes, Ownable {
     constructor() ERC20("TuneToken", "TUNE") ERC20Permit("TuneToken") Ownable(msg.sender) {
         _mint(msg.sender, 1_000_000_000 * 10 ** decimals()); // Initial supply of 1B tokens
         lastInflationTime = block.timestamp;
-        
+
         // Initialize service tiers with token requirements and discount rates
-        serviceTiers[1] = ServiceTier(10_000 * 10 ** 18, 500);  // Tier 1: 10k tokens, 5% discount
+        serviceTiers[1] = ServiceTier(10_000 * 10 ** 18, 500); // Tier 1: 10k tokens, 5% discount
         serviceTiers[2] = ServiceTier(50_000 * 10 ** 18, 1000); // Tier 2: 50k tokens, 10% discount
         serviceTiers[3] = ServiceTier(100_000 * 10 ** 18, 2000); // Tier 3: 100k tokens, 20% discount
     }
@@ -129,7 +129,7 @@ contract TuneToken is ERC20, ERC20Permit, ERC20Votes, Ownable {
         require(totalSupply() < MAX_SUPPLY, "Max supply reached");
 
         // Calculate inflation amount with supply cap check
-        uint256 inflationAmount = (totalSupply() * INFLATION_RATE) / 10000;
+        uint256 inflationAmount = (totalSupply() * INFLATION_RATE) / 10_000;
         uint256 remainingSupply = MAX_SUPPLY - totalSupply();
         inflationAmount = inflationAmount > remainingSupply ? remainingSupply : inflationAmount;
 
@@ -137,10 +137,10 @@ contract TuneToken is ERC20, ERC20Permit, ERC20Votes, Ownable {
         lastInflationTime = block.timestamp;
 
         // Distribute inflation to various pools
-        communityRewardsPool += inflationAmount * 40 / 100;    // 40% to community
+        communityRewardsPool += inflationAmount * 40 / 100; // 40% to community
         ecosystemDevelopmentPool += inflationAmount * 30 / 100; // 30% to ecosystem
-        liquidityMiningPool += inflationAmount * 20 / 100;      // 20% to liquidity
-        governancePool += inflationAmount * 10 / 100;           // 10% to governance
+        liquidityMiningPool += inflationAmount * 20 / 100; // 20% to liquidity
+        governancePool += inflationAmount * 10 / 100; // 10% to governance
     }
 
     /// @notice Burns tokens from the caller's balance
@@ -177,7 +177,7 @@ contract TuneToken is ERC20, ERC20Permit, ERC20Votes, Ownable {
     /// @param amount Amount of tokens to unstake
     function unstake(uint256 amount) external {
         require(stakes[msg.sender].amount >= amount, "Insufficient stake");
-        
+
         _updateReward(msg.sender);
         stakes[msg.sender].amount -= amount;
         _transfer(address(this), msg.sender, amount);
@@ -201,7 +201,7 @@ contract TuneToken is ERC20, ERC20Permit, ERC20Votes, Ownable {
     /// @dev Distributes rewards from liquidity mining pool
     function advanceEpoch() external {
         require(block.timestamp >= currentEpoch + EPOCH_DURATION, "Too early for epoch advance");
-        
+
         uint256 totalStaked = balanceOf(address(this));
         if (totalStaked > 0) {
             // Calculate and distribute epoch rewards
@@ -324,9 +324,7 @@ contract TuneToken is ERC20, ERC20Permit, ERC20Votes, Ownable {
     /// @dev Calculates earned rewards based on stake and time
     /// @param account Address to update rewards for
     function _updateReward(address account) internal {
-        uint256 earnedRewards = (
-            (stakes[account].amount * (rewardPerToken - userRewardPerTokenPaid[account])) / 1e18
-        );
+        uint256 earnedRewards = ((stakes[account].amount * (rewardPerToken - userRewardPerTokenPaid[account])) / 1e18);
         rewards[account] += earnedRewards;
         userRewardPerTokenPaid[account] = rewardPerToken;
     }
