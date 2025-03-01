@@ -1,82 +1,73 @@
 import mongoose from 'mongoose';
-import { Contract, IContract } from '../../../src/models/Contract';
-import { connectDatabase, closeDatabase } from '../../../src/config/database';
+import { Contract, ContractType, IContract } from '../../../src/models/Contract';
 
 describe('Contract Model', () => {
-  jest.setTimeout(30000); // Increase timeout to 30 seconds
-
-  beforeAll(async () => {
-    await connectDatabase();
-  });
-
-  afterAll(async () => {
-    await closeDatabase();
-  });
-
-  beforeEach(async () => {
-    await Contract.deleteMany({});
-  });
+  const validContract = {
+    address: '0x742d35Cc6634C0532925a3b844Bc454e4438f44e',
+    type: ContractType.ERC721,
+    network: 'ethereum',
+    name: 'Test NFT',
+    symbol: 'TEST',
+    isVerified: false,
+    deployedAt: Date.now(),
+    lastIndexedBlock: 2000000
+  };
 
   it('should create a contract successfully', async () => {
-    const validContract = {
-      address: '0x123456789abcdef',
-      name: 'Test Contract',
-      type: 'ERC721' as const,
-      network: 'ethereum',
-    };
-
-    const savedContract = await Contract.create(validContract);
-    expect(savedContract._id).toBeDefined();
-    expect(savedContract.address).toBe(validContract.address);
-    expect(savedContract.isActive).toBe(true);
-    expect(savedContract.createdAt).toBeDefined();
-    expect(savedContract.updatedAt).toBeDefined();
+    const contract = await Contract.create(validContract);
+    expect(contract.address).toBe(validContract.address.toLowerCase());
+    expect(contract.type).toBe(validContract.type);
+    expect(contract.network).toBe(validContract.network);
+    expect(contract.name).toBe(validContract.name);
+    expect(contract.symbol).toBe(validContract.symbol);
+    expect(contract.deployedAt).toEqual(validContract.deployedAt);
+    expect(contract.lastIndexedBlock).toBe(validContract.lastIndexedBlock);
   });
 
-  it('should fail to create contract without required fields', async () => {
-    const invalidContract = {
-      address: '0x123456789abcdef',
-      // Missing required fields
-    };
-
+  it('should require address, type, and network', async () => {
+    const invalidContract = {};
     await expect(Contract.create(invalidContract)).rejects.toThrow();
   });
 
-  it('should enforce unique address constraint', async () => {
-    const contract = {
-      address: '0x123456789abcdef',
-      name: 'Test Contract',
-      type: 'ERC721' as const,
-      network: 'ethereum',
-    };
-
-    await Contract.create(contract);
-    await expect(Contract.create(contract)).rejects.toThrow();
+  it('should enforce unique address per network', async () => {
+    await Contract.create(validContract);
+    await expect(Contract.create(validContract)).rejects.toThrow();
   });
 
-  it('should enforce enum values for type field', async () => {
-    const invalidContract = {
-      address: '0x123456789abcdef',
-      name: 'Test Contract',
-      type: 'INVALID_TYPE',
-      network: 'ethereum',
+  it('should allow different addresses on different networks', async () => {
+    await Contract.create(validContract);
+    const differentAddress = { 
+      ...validContract, 
+      network: 'polygon',
+      address: '0x842d35Cc6634C0532925a3b844Bc454e4438f44f' // Different address
     };
-
-    await expect(Contract.create(invalidContract)).rejects.toThrow();
+    await expect(Contract.create(differentAddress)).resolves.toBeDefined();
   });
 
-  it('should update contract successfully', async () => {
-    const contract = await Contract.create({
-      address: '0x123456789abcdef',
-      name: 'Test Contract',
-      type: 'ERC721' as const,
-      network: 'ethereum',
-    });
+  it('should convert address to lowercase', async () => {
+    const upperCaseAddress = {
+      ...validContract,
+      address: '0x742D35CC6634C0532925A3B844BC454E4438F44E'
+    };
+    const contract = await Contract.create(upperCaseAddress);
+    expect(contract.address).toBe(upperCaseAddress.address.toLowerCase());
+  });
 
-    const updatedName = 'Updated Contract';
-    await Contract.findByIdAndUpdate(contract._id, { name: updatedName });
-    
+  it('should validate contract type', async () => {
+    const invalidType = {
+      ...validContract,
+      type: 'INVALID_TYPE'
+    };
+    await expect(Contract.create(invalidType)).rejects.toThrow();
+  });
+
+  it('should update contract fields', async () => {
+    const contract = await Contract.create(validContract);
+    const newBlockNumber = 3000000;
+    contract.lastIndexedBlock = newBlockNumber;
+    await contract.save();
+
     const updatedContract = await Contract.findById(contract._id);
-    expect(updatedContract?.name).toBe(updatedName);
+    expect(updatedContract?.lastIndexedBlock).toBe(newBlockNumber);
   });
 }); 

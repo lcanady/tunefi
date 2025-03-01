@@ -1,258 +1,243 @@
-import { Request, Response, NextFunction } from 'express';
-import { 
-  errorHandler, 
-  NotFoundError, 
-  ValidationError, 
-  UnauthorizedError, 
-  ForbiddenError,
-  BaseError 
-} from '../../../src/middleware/error-handler';
+import { Request, Response } from 'express';
+import { ValidationError, errorHandler } from '../../../src/middleware/error-handler';
+import mongoose from 'mongoose';
 
 describe('Error Handler Middleware', () => {
   let mockRequest: Partial<Request>;
   let mockResponse: Partial<Response>;
-  let nextFunction: NextFunction = jest.fn();
+  let nextFunction: jest.Mock;
 
   beforeEach(() => {
     mockRequest = {};
     mockResponse = {
       status: jest.fn().mockReturnThis(),
-      json: jest.fn().mockReturnThis(),
+      json: jest.fn()
     };
-    process.env.NODE_ENV = 'production';
+    nextFunction = jest.fn();
+  });
+
+  it('should handle ValidationError', () => {
+    const error = new ValidationError('Invalid input');
+    
+    errorHandler(
+      error,
+      mockRequest as Request,
+      mockResponse as Response,
+      nextFunction
+    );
+
+    expect(mockResponse.status).toHaveBeenCalledWith(400);
+    expect(mockResponse.json).toHaveBeenCalledWith({ error: 'Invalid input' });
+  });
+
+  it('should handle mongoose ValidationError', () => {
+    const error = new mongoose.Error.ValidationError();
+    error.message = 'Mongoose validation failed';
+
+    errorHandler(
+      error,
+      mockRequest as Request,
+      mockResponse as Response,
+      nextFunction
+    );
+
+    expect(mockResponse.status).toHaveBeenCalledWith(400);
+    expect(mockResponse.json).toHaveBeenCalledWith({
+      error: 'Validation failed',
+      details: {}
+    });
+  });
+
+  it('should handle mongoose CastError', () => {
+    const error = new mongoose.Error.CastError('type', 'value', 'path');
+
+    errorHandler(
+      error,
+      mockRequest as Request,
+      mockResponse as Response,
+      nextFunction
+    );
+
+    expect(mockResponse.status).toHaveBeenCalledWith(400);
+    expect(mockResponse.json).toHaveBeenCalledWith({
+      error: 'Invalid data format',
+      details: {
+        path: 'path',
+        value: 'value',
+        type: 'type'
+      }
+    });
+  });
+
+  it('should handle duplicate key error', () => {
+    const error = new Error('Duplicate key') as any;
+    error.name = 'MongoError';
+    error.code = 11000;
+
+    errorHandler(
+      error,
+      mockRequest as Request,
+      mockResponse as Response,
+      nextFunction
+    );
+
+    expect(mockResponse.status).toHaveBeenCalledWith(409);
+    expect(mockResponse.json).toHaveBeenCalledWith({ error: 'Duplicate entry' });
+  });
+
+  it('should handle unknown errors', () => {
+    const error = new Error('Unknown error');
+
+    errorHandler(
+      error,
+      mockRequest as Request,
+      mockResponse as Response,
+      nextFunction
+    );
+
+    expect(mockResponse.status).toHaveBeenCalledWith(500);
+    expect(mockResponse.json).toHaveBeenCalledWith({ error: 'Unknown error' });
+  });
+
+  it('should log errors', () => {
+    const consoleSpy = jest.spyOn(console, 'error').mockImplementation();
+    const error = new Error('Test error');
+
+    errorHandler(
+      error,
+      mockRequest as Request,
+      mockResponse as Response,
+      nextFunction
+    );
+
+    expect(consoleSpy).toHaveBeenCalledWith(error);
+    consoleSpy.mockRestore();
+  });
+
+  it('should handle mongoose ValidationError with multiple validation errors', () => {
+    const error = new mongoose.Error.ValidationError();
+    error.errors = {
+      field1: new mongoose.Error.ValidatorError({ message: 'Field1 error' }),
+      field2: new mongoose.Error.ValidatorError({ message: 'Field2 error' })
+    };
+
+    errorHandler(
+      error,
+      mockRequest as Request,
+      mockResponse as Response,
+      nextFunction
+    );
+
+    expect(mockResponse.status).toHaveBeenCalledWith(400);
+    expect(mockResponse.json).toHaveBeenCalledWith({
+      error: 'Validation failed',
+      details: {
+        field1: 'Field1 error',
+        field2: 'Field2 error'
+      }
+    });
+  });
+
+  it('should handle mongoose CastError with detailed path information', () => {
+    const error = new mongoose.Error.CastError('ObjectId', 'invalidid', 'userId');
+    error.message = 'Cast to ObjectId failed for value "invalidid" at path "userId"';
+
+    errorHandler(
+      error,
+      mockRequest as Request,
+      mockResponse as Response,
+      nextFunction
+    );
+
+    expect(mockResponse.status).toHaveBeenCalledWith(400);
+    expect(mockResponse.json).toHaveBeenCalledWith({
+      error: 'Invalid data format',
+      details: {
+        path: 'userId',
+        value: 'invalidid',
+        type: 'ObjectId'
+      }
+    });
+  });
+
+  it('should handle errors with custom status codes', () => {
+    const error = new Error('Custom error') as any;
+    error.statusCode = 418;
+
+    errorHandler(
+      error,
+      mockRequest as Request,
+      mockResponse as Response,
+      nextFunction
+    );
+
+    expect(mockResponse.status).toHaveBeenCalledWith(418);
+    expect(mockResponse.json).toHaveBeenCalledWith({ error: 'Custom error' });
+  });
+
+  it('should handle errors with additional metadata', () => {
+    const error = new Error('Error with metadata') as any;
+    error.metadata = {
+      code: 'CUSTOM_ERROR',
+      timestamp: new Date().toISOString(),
+      details: {
+        reason: 'Something went wrong',
+        suggestion: 'Try again later'
+      }
+    };
+
+    errorHandler(
+      error,
+      mockRequest as Request,
+      mockResponse as Response,
+      nextFunction
+    );
+
+    expect(mockResponse.status).toHaveBeenCalledWith(500);
+    expect(mockResponse.json).toHaveBeenCalledWith({
+      error: 'Error with metadata',
+      metadata: error.metadata
+    });
+  });
+
+  it('should handle null or undefined errors', () => {
+    errorHandler(
+      null as any,
+      mockRequest as Request,
+      mockResponse as Response,
+      nextFunction
+    );
+
+    expect(mockResponse.status).toHaveBeenCalledWith(500);
+    expect(mockResponse.json).toHaveBeenCalledWith({ error: 'Unknown error occurred' });
+
+    errorHandler(
+      undefined as any,
+      mockRequest as Request,
+      mockResponse as Response,
+      nextFunction
+    );
+
+    expect(mockResponse.status).toHaveBeenCalledWith(500);
+    expect(mockResponse.json).toHaveBeenCalledWith({ error: 'Unknown error occurred' });
+  });
+
+  it('should handle errors with circular references', () => {
+    const error = new Error('Circular error') as any;
+    error.circular = error;
+
+    errorHandler(
+      error,
+      mockRequest as Request,
+      mockResponse as Response,
+      nextFunction
+    );
+
+    expect(mockResponse.status).toHaveBeenCalledWith(500);
+    expect(mockResponse.json).toHaveBeenCalledWith({ error: 'Circular error' });
   });
 
   afterEach(() => {
-    delete process.env.NODE_ENV;
-  });
-
-  describe('BaseError', () => {
-    it('should create error with default status code', () => {
-      const error = new BaseError('Test error');
-      expect(error.statusCode).toBe(500);
-      expect(error.status).toBe('error');
-    });
-
-    it('should create error with custom status code', () => {
-      const error = new BaseError('Test error', 400);
-      expect(error.statusCode).toBe(400);
-      expect(error.status).toBe('fail');
-    });
-
-    it('should capture stack trace', () => {
-      const error = new BaseError('Test error');
-      expect(error.stack).toBeDefined();
-    });
-  });
-
-  describe('Error Classes', () => {
-    it('should create NotFoundError with default message', () => {
-      const error = new NotFoundError();
-      expect(error.message).toBe('Resource not found');
-      expect(error.statusCode).toBe(404);
-    });
-
-    it('should create ValidationError with default message', () => {
-      const error = new ValidationError();
-      expect(error.message).toBe('Invalid input');
-      expect(error.statusCode).toBe(400);
-    });
-
-    it('should create UnauthorizedError with default message', () => {
-      const error = new UnauthorizedError();
-      expect(error.message).toBe('Unauthorized access');
-      expect(error.statusCode).toBe(401);
-    });
-
-    it('should create ForbiddenError with default message', () => {
-      const error = new ForbiddenError();
-      expect(error.message).toBe('Forbidden access');
-      expect(error.statusCode).toBe(403);
-    });
-  });
-
-  describe('Error Handler', () => {
-    it('should handle NotFoundError', () => {
-      const error = new NotFoundError('Resource not found');
-      
-      errorHandler(
-        error,
-        mockRequest as Request,
-        mockResponse as Response,
-        nextFunction
-      );
-
-      expect(mockResponse.status).toHaveBeenCalledWith(404);
-      expect(mockResponse.json).toHaveBeenCalledWith({
-        error: 'Not Found',
-        message: 'Resource not found',
-        statusCode: 404,
-      });
-    });
-
-    it('should handle ValidationError', () => {
-      const error = new ValidationError('Invalid input');
-      
-      errorHandler(
-        error,
-        mockRequest as Request,
-        mockResponse as Response,
-        nextFunction
-      );
-
-      expect(mockResponse.status).toHaveBeenCalledWith(400);
-      expect(mockResponse.json).toHaveBeenCalledWith({
-        error: 'Bad Request',
-        message: 'Invalid input',
-        statusCode: 400,
-      });
-    });
-
-    it('should handle UnauthorizedError', () => {
-      const error = new UnauthorizedError('Invalid token');
-      
-      errorHandler(
-        error,
-        mockRequest as Request,
-        mockResponse as Response,
-        nextFunction
-      );
-
-      expect(mockResponse.status).toHaveBeenCalledWith(401);
-      expect(mockResponse.json).toHaveBeenCalledWith({
-        error: 'Unauthorized',
-        message: 'Invalid token',
-        statusCode: 401,
-      });
-    });
-
-    it('should handle ForbiddenError', () => {
-      const error = new ForbiddenError('Access denied');
-      
-      errorHandler(
-        error,
-        mockRequest as Request,
-        mockResponse as Response,
-        nextFunction
-      );
-
-      expect(mockResponse.status).toHaveBeenCalledWith(403);
-      expect(mockResponse.json).toHaveBeenCalledWith({
-        error: 'Forbidden',
-        message: 'Access denied',
-        statusCode: 403,
-      });
-    });
-
-    it('should handle unknown errors', () => {
-      const error = new Error('Something went wrong');
-      
-      errorHandler(
-        error,
-        mockRequest as Request,
-        mockResponse as Response,
-        nextFunction
-      );
-
-      expect(mockResponse.status).toHaveBeenCalledWith(500);
-      expect(mockResponse.json).toHaveBeenCalledWith({
-        error: 'Internal Server Error',
-        message: 'Something went wrong',
-        statusCode: 500,
-      });
-    });
-
-    it('should handle errors with custom status codes', () => {
-      const error = new Error('Custom error');
-      (error as any).statusCode = 403;
-      
-      errorHandler(
-        error,
-        mockRequest as Request,
-        mockResponse as Response,
-        nextFunction
-      );
-
-      expect(mockResponse.status).toHaveBeenCalledWith(403);
-      expect(mockResponse.json).toHaveBeenCalledWith({
-        error: 'Forbidden',
-        message: 'Custom error',
-        statusCode: 403,
-      });
-    });
-
-    it('should include stack trace in development environment', () => {
-      process.env.NODE_ENV = 'development';
-      const error = new Error('Development error');
-      error.stack = 'Error stack trace';
-      
-      errorHandler(
-        error,
-        mockRequest as Request,
-        mockResponse as Response,
-        nextFunction
-      );
-
-      expect(mockResponse.json).toHaveBeenCalledWith({
-        error: 'Internal Server Error',
-        message: 'Development error',
-        statusCode: 500,
-        stack: 'Error stack trace'
-      });
-    });
-
-    it('should handle service unavailable error', () => {
-      const error = new BaseError('Service unavailable', 503);
-      
-      errorHandler(
-        error,
-        mockRequest as Request,
-        mockResponse as Response,
-        nextFunction
-      );
-
-      expect(mockResponse.status).toHaveBeenCalledWith(503);
-      expect(mockResponse.json).toHaveBeenCalledWith({
-        error: 'Service Unavailable',
-        message: 'Service unavailable',
-        statusCode: 503,
-      });
-    });
-
-    it('should handle bad gateway error', () => {
-      const error = new BaseError('Bad gateway', 502);
-      
-      errorHandler(
-        error,
-        mockRequest as Request,
-        mockResponse as Response,
-        nextFunction
-      );
-
-      expect(mockResponse.status).toHaveBeenCalledWith(502);
-      expect(mockResponse.json).toHaveBeenCalledWith({
-        error: 'Bad Gateway',
-        message: 'Bad gateway',
-        statusCode: 502,
-      });
-    });
-
-    it('should handle unknown status codes', () => {
-      const error = new BaseError('Unknown error', 599);
-      
-      errorHandler(
-        error,
-        mockRequest as Request,
-        mockResponse as Response,
-        nextFunction
-      );
-
-      expect(mockResponse.status).toHaveBeenCalledWith(599);
-      expect(mockResponse.json).toHaveBeenCalledWith({
-        error: 'Internal Server Error',
-        message: 'Unknown error',
-        statusCode: 599,
-      });
-    });
+    jest.clearAllMocks();
   });
 }); 

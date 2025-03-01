@@ -1,53 +1,12 @@
 import { Request, Response, NextFunction } from 'express';
+import mongoose from 'mongoose';
 
-export class BaseError extends Error {
-  statusCode: number;
-  status: string;
-
-  constructor(message: string, statusCode: number = 500) {
+export class ValidationError extends Error {
+  constructor(message: string) {
     super(message);
-    this.statusCode = statusCode;
-    this.status = `${statusCode}`.startsWith('4') ? 'fail' : 'error';
-    Error.captureStackTrace(this, this.constructor);
+    this.name = 'ValidationError';
   }
 }
-
-export class NotFoundError extends BaseError {
-  constructor(message: string = 'Resource not found') {
-    super(message, 404);
-  }
-}
-
-export class ValidationError extends BaseError {
-  constructor(message: string = 'Invalid input') {
-    super(message, 400);
-  }
-}
-
-export class UnauthorizedError extends BaseError {
-  constructor(message: string = 'Unauthorized access') {
-    super(message, 401);
-  }
-}
-
-export class ForbiddenError extends BaseError {
-  constructor(message: string = 'Forbidden access') {
-    super(message, 403);
-  }
-}
-
-const getErrorName = (statusCode: number): string => {
-  const errorNames: { [key: number]: string } = {
-    400: 'Bad Request',
-    401: 'Unauthorized',
-    403: 'Forbidden',
-    404: 'Not Found',
-    500: 'Internal Server Error',
-    502: 'Bad Gateway',
-    503: 'Service Unavailable'
-  };
-  return errorNames[statusCode] || 'Internal Server Error';
-};
 
 export const errorHandler = (
   err: Error,
@@ -55,13 +14,60 @@ export const errorHandler = (
   res: Response,
   next: NextFunction
 ) => {
-  const statusCode = (err as any).statusCode || 500;
-  const errorName = getErrorName(statusCode);
+  console.error(err);
 
-  res.status(statusCode).json({
-    error: errorName,
-    message: err.message,
-    statusCode,
-    ...(process.env.NODE_ENV === 'development' && { stack: err.stack })
-  });
+  // Handle null/undefined errors
+  if (!err) {
+    return res.status(500).json({ error: 'Unknown error occurred' });
+  }
+
+  // Handle custom validation errors
+  if (err instanceof ValidationError) {
+    return res.status(400).json({ error: err.message });
+  }
+
+  // Handle mongoose validation errors with details
+  if (err instanceof mongoose.Error.ValidationError) {
+    const details: { [key: string]: string } = {};
+    for (const field in err.errors) {
+      details[field] = err.errors[field].message;
+    }
+    return res.status(400).json({
+      error: 'Validation failed',
+      details
+    });
+  }
+
+  // Handle mongoose cast errors with details
+  if (err instanceof mongoose.Error.CastError) {
+    return res.status(400).json({
+      error: 'Invalid data format',
+      details: {
+        path: err.path,
+        value: err.value,
+        type: err.kind
+      }
+    });
+  }
+
+  // Handle duplicate key errors
+  if (err.name === 'MongoError' && (err as any).code === 11000) {
+    return res.status(409).json({ error: 'Duplicate entry' });
+  }
+
+  // Handle custom status codes
+  if ((err as any).statusCode) {
+    return res.status((err as any).statusCode).json({ error: err.message });
+  }
+
+  // Handle errors with metadata
+  if ((err as any).metadata) {
+    return res.status(500).json({
+      error: err.message,
+      metadata: (err as any).metadata
+    });
+  }
+
+  // Handle all other errors
+  return res.status(500).json({ error: err.message || 'Internal server error' });
 }; 

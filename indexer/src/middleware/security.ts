@@ -1,72 +1,88 @@
 import { Request, Response, NextFunction } from 'express';
-import rateLimit, { Options } from 'express-rate-limit';
-import { logger } from '../utils/logger';
 
-// CORS middleware
+interface RateLimitStore {
+  [key: string]: {
+    count: number;
+    resetTime: number;
+  };
+}
+
+let rateLimitStore: RateLimitStore = {};
+const WINDOW_SIZE_IN_MINUTES = 1;
+const MAX_REQUESTS_PER_WINDOW = 100;
+
+// For testing purposes
+export const resetRateLimitStore = () => {
+  rateLimitStore = {};
+};
+
+export const rateLimiter = (req: Request, res: Response, next: NextFunction) => {
+  const ip = req.ip || req.socket.remoteAddress || 'unknown';
+  const now = Date.now();
+
+  // Initialize new entries
+  if (!rateLimitStore[ip]) {
+    rateLimitStore[ip] = {
+      count: 1,
+      resetTime: now + (WINDOW_SIZE_IN_MINUTES * 60 * 1000)
+    };
+    return next();
+  }
+
+  // Check if window has expired
+  if (now >= rateLimitStore[ip].resetTime) {
+    rateLimitStore[ip] = {
+      count: 1,
+      resetTime: now + (WINDOW_SIZE_IN_MINUTES * 60 * 1000)
+    };
+    return next();
+  }
+
+  // Check if over limit
+  if (rateLimitStore[ip].count >= MAX_REQUESTS_PER_WINDOW) {
+    return res.status(429).json({ error: 'Too many requests' });
+  }
+
+  // Increment request count
+  rateLimitStore[ip].count++;
+  next();
+};
+
 export const corsMiddleware = (req: Request, res: Response, next: NextFunction) => {
   const allowedOrigins = process.env.ALLOWED_ORIGINS?.split(',') || [];
   const origin = req.headers.origin;
 
-  if (!origin || allowedOrigins.includes(origin)) {
-    res.setHeader('Access-Control-Allow-Origin', origin || '*');
-    res.setHeader('Access-Control-Allow-Methods', 'GET,HEAD,PUT,PATCH,POST,DELETE');
-    
-    if (req.method === 'OPTIONS') {
-      res.setHeader('Access-Control-Allow-Headers', 'Content-Type,Authorization');
-      res.setHeader('Access-Control-Max-Age', '86400'); // 24 hours
-    }
-    
-    next();
-  } else {
-    logger.warn(`Blocked request from unauthorized origin: ${origin}`);
-    res.status(403).json({
-      error: 'Forbidden',
-      message: 'Origin not allowed'
-    });
+  // Check if origin is allowed
+  if (origin && !allowedOrigins.includes(origin)) {
+    return res.status(403).json({ error: 'Origin not allowed' });
   }
-};
 
-// Rate limiting middleware factory
-export const createRateLimiter = (options?: Partial<Options>) => {
-  return rateLimit({
-    windowMs: 15 * 60 * 1000, // 15 minutes
-    max: 100, // Limit each IP to 100 requests per windowMs
-    message: {
-      error: 'Too Many Requests',
-      message: 'Rate limit exceeded'
-    },
-    standardHeaders: true,
-    legacyHeaders: false,
-    handler: (req: Request, res: Response) => {
-      logger.warn(`Rate limit exceeded for IP: ${req.ip}`);
-      res.status(429).json({
-        error: 'Too Many Requests',
-        message: 'Rate limit exceeded'
-      });
-    },
-    ...options
-  });
-};
+  // Set CORS headers
+  if (origin) {
+    res.setHeader('Access-Control-Allow-Origin', origin);
+  }
+  res.setHeader('Access-Control-Allow-Methods', 'GET,HEAD,PUT,PATCH,POST,DELETE');
 
-// Default rate limiter instance
-export const rateLimiter = createRateLimiter();
+  // Handle preflight requests
+  if (req.method === 'OPTIONS') {
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+    res.setHeader('Access-Control-Max-Age', '86400'); // 24 hours
+  }
 
-// Security headers middleware
-export const securityHeaders = (req: Request, res: Response, next: NextFunction) => {
-  // Prevent MIME type sniffing
-  res.setHeader('X-Content-Type-Options', 'nosniff');
-  
-  // Prevent clickjacking
-  res.setHeader('X-Frame-Options', 'DENY');
-  
-  // Enable XSS filter
-  res.setHeader('X-XSS-Protection', '1; mode=block');
-  
-  // Enable HSTS
-  res.setHeader(
-    'Strict-Transport-Security',
-    'max-age=31536000; includeSubDomains'
-  );
-  
   next();
+};
+
+// Security middleware
+export const securityMiddleware = (req: Request, res: Response, next: NextFunction) => {
+  // Set security headers
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  res.setHeader('X-Frame-Options', 'DENY');
+  res.setHeader('X-XSS-Protection', '1; mode=block');
+  res.setHeader('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
+
+  // Apply CORS and rate limiting
+  corsMiddleware(req, res, (err?: any) => {
+    if (err) return next(err);
+    rateLimiter(req, res, next);
+  });
 }; 

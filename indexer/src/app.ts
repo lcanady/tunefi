@@ -1,24 +1,36 @@
 import express from 'express';
-import { version } from '../package.json';
+import cors from 'cors';
+import helmet from 'helmet';
+import mongoose from 'mongoose';
+import contractRoutes from './routes/contracts';
 import { errorHandler } from './middleware/error-handler';
+import { securityMiddleware } from './middleware/security';
 
-// Create Express app
 const app = express();
 
-// Add JSON parsing middleware
+// Security middleware
+app.use(helmet());
+app.use(cors());
+app.use(securityMiddleware);
+
+// Body parsing middleware
 app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
+
+// API Routes
+app.use('/api/v1/contracts', contractRoutes);
+
+// Error handling middleware
+app.use(errorHandler);
 
 // Health check endpoint
-app.get('/api/v1/indexer/health', (req, res) => {
-  res.json({
-    status: 'ok',
-    timestamp: new Date().toISOString(),
-    version,
-    uptime: process.uptime(),
-  });
+app.get('/health', (req, res) => {
+  res.status(200).json({ status: 'ok' });
 });
 
-// Add error handling middleware last
-app.use(errorHandler);
+// 404 handler
+app.use((req, res) => {
+  res.status(404).json({ error: 'Not found' });
+});
 
 export { app }; 

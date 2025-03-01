@@ -1,52 +1,84 @@
-import mongoose from 'mongoose';
+import mongoose, { Schema, Document } from 'mongoose';
 
-export interface IContract {
+export const ContractType = {
+  ERC721: 'ERC721',
+  ERC1155: 'ERC1155'
+} as const;
+
+export type ContractType = typeof ContractType[keyof typeof ContractType];
+
+export interface IContract extends Document {
   address: string;
-  name: string;
-  type: string;
   network: string;
+  type: ContractType;
+  name?: string;
+  symbol?: string;
+  isVerified: boolean;
+  deployedAt?: number;
+  lastIndexedBlock?: number;
+  metadata?: {
+    description?: string;
+    image?: string;
+    externalLink?: string;
+  };
   createdAt: Date;
   updatedAt: Date;
-  lastIndexedBlock?: number;
-  isActive: boolean;
 }
 
-const contractSchema = new mongoose.Schema<IContract>(
+const contractSchema = new Schema<IContract>(
   {
     address: {
       type: String,
       required: true,
       unique: true,
-      lowercase: true,
       index: true,
-    },
-    name: {
-      type: String,
-      required: true,
-    },
-    type: {
-      type: String,
-      required: true,
-      enum: ['ERC721', 'ERC1155', 'Custom'],
-      index: true,
+      lowercase: true
     },
     network: {
       type: String,
       required: true,
-      index: true,
+      index: true
+    },
+    type: {
+      type: String,
+      required: true,
+      enum: Object.values(ContractType),
+      index: true
+    },
+    name: String,
+    symbol: String,
+    isVerified: {
+      type: Boolean,
+      default: false,
+      index: true
+    },
+    deployedAt: {
+      type: Number,
+      index: true
     },
     lastIndexedBlock: {
       type: Number,
+      index: true
     },
-    isActive: {
-      type: Boolean,
-      default: true,
-    },
+    metadata: {
+      description: String,
+      image: String,
+      externalLink: String
+    }
   },
   {
     timestamps: true,
+    versionKey: false
   }
 );
 
-export const Contract = mongoose.model<IContract>('Contract', contractSchema);
-export default Contract; 
+// Pre-save hook to ensure address is lowercase
+contractSchema.pre('save', function(next) {
+  if (this.isModified('address')) {
+    this.address = this.address.toLowerCase();
+  }
+  next();
+});
+
+// Remove explicit index creation since we're using schema-level indexing
+export const Contract = mongoose.model<IContract>('Contract', contractSchema); 
