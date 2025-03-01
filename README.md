@@ -1,121 +1,56 @@
 # TuneFi Platform
 
-TuneFi is a decentralized music platform that enables artists to tokenize their music, manage royalties, and engage with fans through blockchain technology.
+TuneFi is a decentralized platform for the music industry, enabling artists, fans, and stakeholders to interact in a transparent and fair ecosystem.
 
-## 🎵 Key Features
+## Project Structure
 
-### For Artists
-- Tokenize music tracks as ERC1155 NFTs
-- Collaborative royalty distribution
-- Track version management
-- Automated royalty payments
+The project is organized into the following main components:
 
-### For Fans
-- Purchase and collect music NFTs
-- Direct artist support through NFT purchases
-- Transparent royalty system
-- Social engagement features
+### `/contracts`
 
-## 🏗 Architecture
+Smart contracts that power the TuneFi platform:
 
-### Core Contracts
+- **TuneToken**: The platform's utility token
+- **MusicNFT**: NFT implementation for music ownership
+- **Marketplace**: For buying and selling music NFTs
+- **RoyaltyDistributor**: Handles royalty payments to rights holders
+- **StakingContract**: Token staking mechanism
+- **Governor**: DAO governance implementation
+- **FanEngagement**: Fan interaction and rewards system
+- **RecommendationGraph**: Music recommendation system
+- **TuneAccessControl**: Role-based access control
 
-#### Token & NFT System
-- [TuneToken](./docs/contracts/TuneToken.md): ERC20 token with vesting, staking, and service tiers
-- [MusicNFT](./docs/contracts/MusicNFT.md): ERC1155 NFT for music tracks with version control
+### `/api`
 
-#### Financial System
-- [RoyaltyDistributor](./docs/contracts/RoyaltyDistributor.md): Handles royalty distribution for collaborators
-- [Marketplace](./docs/contracts/Marketplace.md): NFT trading with automated royalty handling
+Backend indexing service that processes blockchain data:
 
-#### Platform Features
-- [RecommendationGraph](./docs/contracts/RecommendationGraph.md): Music recommendation system
-- [AccessControl](./docs/contracts/AccessControl.md): Role-based permissions
+- RESTful API for querying contract data
+- Support for multiple networks
+- Contract type classification
+- Swagger API documentation
 
-## 🚀 Getting Started
+## Getting Started
 
-### Prerequisites
-- Foundry
-- Git
+### Smart Contracts
 
-### Installation
 ```bash
-# Clone the repository
-git clone https://github.com/yourusername/tunefi.git
-
-# Install dependencies
-cd tunefi
-forge install
-
-# Build contracts
+cd contracts
 forge build
-
-# Run tests
 forge test
 ```
 
-## 🧪 Testing
+See the [contracts README](contracts/README.md) for more details.
 
-### Run All Tests
+### API Service
+
 ```bash
-forge test
+cd api
+npm install
+npm run dev
 ```
 
-### Run Specific Test File
-```bash
-forge test --match-path test/MusicNFT.t.sol
-```
+See the [API README](api/README.md) for more details.
 
-## 🔐 Security Features
+## License
 
-- Role-based access control
-- Pausable contracts
-- Safe math operations (Solidity 0.8.20)
-- Reentrancy protection
-- ERC1155 receiver validation
-
-## 📈 Tokenomics
-
-### TUNE Token Features
-- Token vesting with revocable schedules
-- Staking with rewards
-- Service tier discounts
-- Automated inflation mechanism
-
-### Token Utility
-- Platform fee discounts
-- Staking rewards
-- Service tier benefits
-
-## 🛠 Development
-
-### Smart Contract Development
-```bash
-# Create new contract
-forge create src/NewContract.sol:NewContract
-
-# Run tests with verbosity
-forge test -vvv
-```
-
-### Local Development
-```bash
-# Start local node
-anvil
-
-# Deploy to local network
-forge script script/Deploy.s.sol --fork-url http://localhost:8545 --broadcast
-```
-
-## 📄 License
-
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
-
-## 🤝 Contributing
-
-Contributions are welcome! Please feel free to submit a Pull Request.
-
-## Dependencies
-
-- OpenZeppelin Contracts v5.0.1
-- Foundry for development and testing
+[MIT](LICENSE)
